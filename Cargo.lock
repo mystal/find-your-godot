@@ -1486,6 +1486,7 @@ dependencies = [
  "directories",
  "futures",
  "octocrab",
+ "reqwest",
  "tokio",
 ]
 

@@ -1,3 +1,5 @@
+use std::{fs, io::Write};
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -13,7 +15,14 @@ enum Commands {
     List,
 
     /// Install the given Godot engine version.
-    Install,
+    Install {
+        /// Which version to install. e.g. "3.5.1"
+        version: String,
+
+        /// Install the Mono version with C# support.
+        #[arg(long)]
+        mono: bool,
+    },
 
     /// Uninstall the given Godot engine version.
     Uninstall,
@@ -25,9 +34,55 @@ enum Commands {
     Open,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Platform {
+    Windows32,
+    Windows64,
+    MacOS,
+    Linux32,
+    Linux64,
+    Unsupported,
+}
+
+impl Platform {
+    fn to_package(&self) -> &'static str {
+        match self {
+            Platform::Windows32 => "win32.exe",
+            Platform::Windows64 => "win64.exe",
+            Platform::MacOS => "osx.universal",
+            Platform::Linux32 => "x11.32",
+            Platform::Linux64 => "x11.64",
+            Platform::Unsupported => "unsupported",
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    // Compile time detection of platform we're running on.
+    let platform = if cfg!(target_os = "windows") {
+        if cfg!(target_arch = "x86") {
+            Platform::Windows32
+        } else if cfg!(target_arch = "x86_64") {
+            Platform::Windows64
+        } else {
+            Platform::Unsupported
+        }
+    } else if cfg!(target_os = "macos") {
+        Platform::MacOS
+    } else if cfg!(target_os = "linux") {
+        if cfg!(target_arch = "x86") {
+            Platform::Linux32
+        } else if cfg!(target_arch = "x86_64") {
+            Platform::Linux64
+        } else {
+            Platform::Unsupported
+        }
+    } else {
+        Platform::Unsupported
+    };
 
     match &cli.command {
         Some(Commands::List) => {
@@ -52,8 +107,59 @@ async fn main() {
                 }
             }
         }
-        Some(Commands::Install) => {
+        Some(Commands::Install { version, mono }) => {
             println!("Install");
+
+            let full_version = format!("{}-stable", version);
+            let package_name = format!("Godot_v{}_{}.zip", &full_version, platform.to_package());
+
+            let proj_dirs = directories::ProjectDirs::from("me.gabem", "Gabriel Martinez", "Too Many Godots").unwrap();
+
+            // TODO: Check if we already have this version installed.
+
+            // Try to get the URL for this release.
+            let octocrab = octocrab::instance();
+            let maybe_release = octocrab.repos("godotengine", "godot")
+                .releases()
+                .get_by_tag(&full_version)
+                .await;
+            if let Ok(release) = maybe_release {
+                // TODO: If found, download package for this OS.
+                let maybe_url = release.assets.iter()
+                    .find(|asset| asset.name == package_name)
+                    .map(|asset| &asset.browser_download_url);
+                if let Some(package_url) = maybe_url {
+                    println!("Package URL: {}", package_url);
+
+                    // Download the file.
+                    let response = reqwest::get(package_url.as_str())
+                        .await
+                        .unwrap();
+                    let content = response.bytes()
+                        .await
+                        .unwrap();
+
+                    // Copy content to cache directory for versions.
+                    let cache_dir = proj_dirs.cache_dir();
+                    fs::create_dir_all(cache_dir).unwrap();
+                    let download_path = cache_dir.join(&package_name);
+                    {
+                        let mut file = fs::File::create(&download_path).unwrap();
+                        file.write_all(&content).unwrap();
+                    }
+                    println!("Downloaded to: {}", download_path.to_string_lossy());
+
+                    // TODO: Check SHA512 sum.
+
+                    // TODO: Unzip downloaded file to data dir for versions.
+                } else {
+                    println!("Sorry, version \"{}\" does not support your platform.", version);
+                }
+            } else {
+                // TODO: Handle Err cases.
+                println!("Sorry, version \"{}\" not found.", version);
+                // TODO: Get list of releases and print available releases.
+            }
         }
         Some(Commands::Uninstall) => {
             println!("Uninstall");
