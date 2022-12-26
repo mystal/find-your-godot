@@ -1,4 +1,4 @@
-use std::{fs, io::Write};
+use std::{fs, io::Write, process::Command};
 
 use clap::{Parser, Subcommand};
 
@@ -32,7 +32,10 @@ enum Commands {
     Uninstall,
 
     /// Launch the given Godot engine version.
-    Launch,
+    Launch {
+        /// Which version to launch. e.g. "3.5.1"
+        version: String,
+    },
 
     /// Open the Godot project in the current directory in its associated Godot engine.
     Open,
@@ -87,12 +90,35 @@ async fn main() {
     } else {
         Platform::Unsupported
     };
+    let proj_dirs = directories::ProjectDirs::from("me.gabem", "Gabriel Martinez", "Too Many Godots").unwrap();
 
     match &cli.command {
         Some(Commands::List { all }) => {
-            println!("List");
-
-            // TODO: By default, list just the installed versions.
+            if !all {
+                // Start by finding the installed versions.
+                let engines_dir = proj_dirs.data_dir()
+                    .join("engines");
+                let read_dir = fs::read_dir(&engines_dir).unwrap();
+                // By default, list just the installed versions.
+                for entry in read_dir {
+                    let entry = entry.unwrap();
+                    let version_path = entry.path();
+                    if version_path.is_dir() {
+                        let file_name = entry.file_name();
+                        let full_version = file_name.to_string_lossy();
+                        let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+                        let bin_path = proj_dirs.data_dir()
+                            .join("engines")
+                            .join(full_version.as_ref())
+                            .join(bin_name);
+                        // TODO: Also check that it's executable?
+                        if bin_path.is_file() {
+                            println!("{}", &full_version);
+                        }
+                    }
+                }
+                return;
+            }
 
             // Query GitHub for list of Godot Releases.
             let octocrab = octocrab::instance();
@@ -114,12 +140,8 @@ async fn main() {
             }
         }
         Some(Commands::Install { version, mono }) => {
-            println!("Install");
-
             let full_version = format!("{}-stable", version);
             let package_name = format!("Godot_v{}_{}.zip", &full_version, platform.to_package());
-
-            let proj_dirs = directories::ProjectDirs::from("me.gabem", "Gabriel Martinez", "Too Many Godots").unwrap();
 
             // TODO: Check if we already have this version installed.
 
@@ -146,8 +168,10 @@ async fn main() {
                         .unwrap();
 
                     // Copy content to cache directory for versions.
-                    let cache_dir = proj_dirs.cache_dir();
-                    fs::create_dir_all(cache_dir).unwrap();
+                    let cache_dir = proj_dirs.cache_dir()
+                        .join("engines")
+                        .join(&full_version);
+                    fs::create_dir_all(&cache_dir).unwrap();
                     let download_path = cache_dir.join(&package_name);
                     {
                         let mut file = fs::File::create(&download_path).unwrap();
@@ -158,11 +182,19 @@ async fn main() {
 
                     // TODO: Check SHA512 sum.
 
-                    // Unzip downloaded file to data dir for versions.
-                    let data_dir = proj_dirs.data_dir();
+                    // Unzip downloaded file to data dir under its version.
+                    let data_dir = proj_dirs.data_dir()
+                        .join("engines")
+                        .join(&full_version);
                     let seekable_content = std::io::Cursor::new(&content);
                     let mut archive = zip::ZipArchive::new(seekable_content).unwrap();
-                    archive.extract(data_dir).unwrap();
+                    archive.extract(&data_dir).unwrap();
+
+                    // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
+                    // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
+                    {
+                        fs::File::create(data_dir.join("_sc_")).unwrap();
+                    }
 
                     println!("Extracted to: {}", data_dir.to_string_lossy());
                 } else {
@@ -177,10 +209,23 @@ async fn main() {
         Some(Commands::Uninstall) => {
             println!("Uninstall");
         }
-        Some(Commands::Launch) => {
-            println!("Launch");
-
-            // TODO: Try to launch the specified version.
+        Some(Commands::Launch { version }) => {
+            // Try to launch the specified version.
+            let full_version = format!("{}-stable", version);
+            let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+            let bin_path = proj_dirs.data_dir()
+                .join("engines")
+                .join(&full_version)
+                .join(bin_name);
+            if bin_path.is_file() {
+                // TODO: Add option to disconnect from terminal.
+                println!("Running: {}", bin_path.to_string_lossy());
+                Command::new(&bin_path)
+                    .spawn()
+                    .unwrap();
+            } else {
+                println!("Version {} is not installed.", version);
+            }
         }
         Some(Commands::Open) => {
             println!("Open");
