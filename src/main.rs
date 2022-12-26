@@ -1,6 +1,7 @@
 use std::{fs, io::Write, process::Command};
 
 use clap::{Parser, Subcommand};
+use directories::ProjectDirs;
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true))]
@@ -26,10 +27,17 @@ enum Commands {
         /// Install the Mono version with C# support.
         #[arg(long)]
         mono: bool,
+
+        /// Re-install if already installed.
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// Uninstall the given Godot engine version.
-    Uninstall,
+    Uninstall {
+        /// Which version to uninstall. e.g. "3.5.1"
+        version: String,
+    },
 
     /// Launch the given Godot engine version.
     Launch {
@@ -62,6 +70,18 @@ impl Platform {
             Platform::Unsupported => "unsupported",
         }
     }
+}
+
+fn uninstall(proj_dirs: &ProjectDirs, version: &str) -> bool {
+    let full_version = format!("{}-stable", version);
+    let engine_path = proj_dirs.data_dir()
+        .join("engines")
+        .join(&full_version);
+    if engine_path.is_dir() {
+        fs::remove_dir_all(engine_path).unwrap();
+        return true;
+    }
+    return false;
 }
 
 #[tokio::main]
@@ -128,22 +148,60 @@ async fn main() {
                 .send()
                 .await
                 .unwrap();
-            // TODO: List release versions (for this platform?)
+            // List release versions.
+            // TODO: Filter out/mark ones that don't support this platform.
+            // TODO: Add option for ones with mono versions.
             for release in &releases.items {
-                // TODO: Decide to use either name or tag_name.
-                let name = release.name.as_deref()
-                    .unwrap_or("None");
-                println!("Release: {} [{}]", name, &release.tag_name);
-                for asset in &release.assets {
-                    println!("  Asset: {}", &asset.name);
-                }
+                println!("{}", &release.tag_name);
             }
         }
-        Some(Commands::Install { version, mono }) => {
+        Some(Commands::Install { version, mono, force }) => {
             let full_version = format!("{}-stable", version);
-            let package_name = format!("Godot_v{}_{}.zip", &full_version, platform.to_package());
+            let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+            let bin_path = proj_dirs.data_dir()
+                .join("engines")
+                .join(&full_version)
+                .join(&bin_name);
+            let zip_name = format!("{}.zip", &bin_name);
+            let zip_path = proj_dirs.cache_dir()
+                .join("engines")
+                .join(&full_version)
+                .join(&zip_name);
 
-            // TODO: Check if we already have this version installed.
+            if *force {
+                // Uninstall any existing version before installing.
+                uninstall(&proj_dirs, version);
+            } else {
+                // Check if we already have this version installed.
+                if bin_path.is_file() {
+                    println!("Version {} is already installed. Pass --force to re-install.", version);
+                    return;
+                }
+            }
+
+            // Skip download if engine zip is cached.
+            if zip_path.is_file() {
+                // TODO: Check SHA512 sum of zip.
+
+                println!("Version {} is already downloaded. Extracting from cache.", version);
+
+                let zip_file = fs::File::open(&zip_path).unwrap();
+
+                let data_dir = proj_dirs.data_dir()
+                    .join("engines")
+                    .join(&full_version);
+                let mut archive = zip::ZipArchive::new(zip_file).unwrap();
+                archive.extract(&data_dir).unwrap();
+
+                // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
+                // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
+                {
+                    fs::File::create(data_dir.join("_sc_")).unwrap();
+                }
+
+                println!("Extracted to: {}", data_dir.to_string_lossy());
+                return;
+            }
 
             // Try to get the URL for this release.
             let octocrab = octocrab::instance();
@@ -152,9 +210,9 @@ async fn main() {
                 .get_by_tag(&full_version)
                 .await;
             if let Ok(release) = maybe_release {
-                // TODO: If found, download package for this OS.
+                // If found, download package for this platform.
                 let maybe_url = release.assets.iter()
-                    .find(|asset| asset.name == package_name)
+                    .find(|asset| asset.name == zip_name)
                     .map(|asset| &asset.browser_download_url);
                 if let Some(package_url) = maybe_url {
                     println!("Package URL: {}", package_url);
@@ -172,21 +230,23 @@ async fn main() {
                         .join("engines")
                         .join(&full_version);
                     fs::create_dir_all(&cache_dir).unwrap();
-                    let download_path = cache_dir.join(&package_name);
+                    let download_path = cache_dir.join(&zip_name);
                     {
                         let mut file = fs::File::create(&download_path).unwrap();
                         // std::io::copy(&mut content.as_ref(), &mut file).unwrap();
                         file.write_all(&content).unwrap();
                     }
+
+                    // TODO: Check SHA512 sum of zip.
+
                     println!("Downloaded to: {}", download_path.to_string_lossy());
 
-                    // TODO: Check SHA512 sum.
 
                     // Unzip downloaded file to data dir under its version.
                     let data_dir = proj_dirs.data_dir()
                         .join("engines")
                         .join(&full_version);
-                    let seekable_content = std::io::Cursor::new(&content);
+                    let seekable_content = std::io::Cursor::new(content.as_ref());
                     let mut archive = zip::ZipArchive::new(seekable_content).unwrap();
                     archive.extract(&data_dir).unwrap();
 
@@ -206,8 +266,12 @@ async fn main() {
                 // TODO: Get list of releases and print available releases.
             }
         }
-        Some(Commands::Uninstall) => {
-            println!("Uninstall");
+        Some(Commands::Uninstall { version }) => {
+            if uninstall(&proj_dirs, version) {
+                println!("Uninstalled version {}", version);
+            } else {
+                println!("Version {} is not installed", version);
+            }
         }
         Some(Commands::Launch { version }) => {
             // Try to launch the specified version.
