@@ -11,8 +11,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List available Godot engine versions.
-    List,
+    /// List Godot engine versions. By default shows only installed versions.
+    List {
+        /// Show all Godot engine versions installed and available.
+        #[arg(short, long)]
+        all: bool,
+    },
 
     /// Install the given Godot engine version.
     Install {
@@ -85,8 +89,10 @@ async fn main() {
     };
 
     match &cli.command {
-        Some(Commands::List) => {
+        Some(Commands::List { all }) => {
             println!("List");
+
+            // TODO: By default, list just the installed versions.
 
             // Query GitHub for list of Godot Releases.
             let octocrab = octocrab::instance();
@@ -145,13 +151,20 @@ async fn main() {
                     let download_path = cache_dir.join(&package_name);
                     {
                         let mut file = fs::File::create(&download_path).unwrap();
+                        // std::io::copy(&mut content.as_ref(), &mut file).unwrap();
                         file.write_all(&content).unwrap();
                     }
                     println!("Downloaded to: {}", download_path.to_string_lossy());
 
                     // TODO: Check SHA512 sum.
 
-                    // TODO: Unzip downloaded file to data dir for versions.
+                    // Unzip downloaded file to data dir for versions.
+                    let data_dir = proj_dirs.data_dir();
+                    let seekable_content = std::io::Cursor::new(&content);
+                    let mut archive = zip::ZipArchive::new(seekable_content).unwrap();
+                    archive.extract(data_dir).unwrap();
+
+                    println!("Extracted to: {}", data_dir.to_string_lossy());
                 } else {
                     println!("Sorry, version \"{}\" does not support your platform.", version);
                 }
@@ -166,6 +179,8 @@ async fn main() {
         }
         Some(Commands::Launch) => {
             println!("Launch");
+
+            // TODO: Try to launch the specified version.
         }
         Some(Commands::Open) => {
             println!("Open");
