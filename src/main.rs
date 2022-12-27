@@ -1,4 +1,8 @@
-use std::{fs, io::Write, process::Command};
+use std::{
+    fs,
+    io::Write,
+    process::{Command, Stdio},
+};
 
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
@@ -322,9 +326,11 @@ async fn main() {
                 .join(&full_version)
                 .join(bin_name);
             if bin_path.is_file() {
-                // TODO: Add option to disconnect from terminal.
                 println!("Running: {}", bin_path.to_string_lossy());
                 Command::new(&bin_path)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .spawn()
                     .unwrap();
             } else {
@@ -347,6 +353,9 @@ async fn main() {
                         println!("Opening project in: {}", bin_path.to_string_lossy());
                         Command::new(&bin_path)
                             .arg("project.godot")
+                            .stdin(Stdio::null())
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
                             .spawn()
                             .unwrap();
                     } else {
