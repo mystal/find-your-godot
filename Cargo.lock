@@ -1708,7 +1708,9 @@ dependencies = [
  "futures",
  "octocrab",
  "reqwest",
+ "serde",
  "tokio",
+ "toml",
  "zip",
 ]
 

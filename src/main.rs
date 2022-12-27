@@ -2,6 +2,7 @@ use std::{fs, io::Write, process::Command};
 
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
+use serde::Deserialize;
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true))]
@@ -47,6 +48,11 @@ enum Commands {
 
     /// Open the Godot project in the current directory in its associated Godot engine.
     Open,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProjectGodotVersionConfig {
+    version: String,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -326,7 +332,32 @@ async fn main() {
             }
         }
         Some(Commands::Open) => {
-            println!("Open");
+            // TODO: check for project.godot and godot_version.toml
+            if let Ok(project_config_str) = fs::read_to_string("godot_version.toml") {
+                if let Ok(project_config) = toml::from_str::<ProjectGodotVersionConfig>(&project_config_str) {
+                    // TODO: check that the version in godot_version.toml is installed.
+                    let full_version = get_full_version(&project_config.version);
+                    let bin_name = get_binary_name(&full_version, platform);
+                    let bin_path = proj_dirs.data_dir()
+                        .join("engines")
+                        .join(&full_version)
+                        .join(bin_name);
+                    if bin_path.is_file() {
+                        // Run Godot with the given project!!
+                        println!("Opening project in: {}", bin_path.to_string_lossy());
+                        Command::new(&bin_path)
+                            .arg("project.godot")
+                            .spawn()
+                            .unwrap();
+                    } else {
+                        println!("Godot version {} is not installed.", &project_config.version);
+                    }
+                } else {
+                    println!("Could not parse godot_version.toml as valid TOML.");
+                }
+            } else {
+                println!("No godot_version.toml found in this directory.");
+            }
         }
         None => {},
     }
