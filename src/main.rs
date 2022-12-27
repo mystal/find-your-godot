@@ -72,8 +72,42 @@ impl Platform {
     }
 }
 
+fn get_full_version(version: &str) -> String {
+    // TODO: Use a more thorough heuristic.
+    if version.contains('-') {
+        version.to_string()
+    } else {
+        format!("{}-stable", version)
+    }
+}
+
+fn get_binary_name(full_version: &str, platform: Platform) -> String {
+    // TODO: The naming convention for binary/zip names seems to change a lot. To support all
+    // versions, might be best to use a static list that we generate.
+    let platform_suffix = if full_version.starts_with('4') {
+        match platform {
+            Platform::Windows32 => "win32.exe",
+            Platform::Windows64 => "win64.exe",
+            Platform::MacOS => "macos.universal",
+            Platform::Linux32 => "linux.x86_32",
+            Platform::Linux64 => "linux.x86_64",
+            Platform::Unsupported => "unsupported",
+        }
+    } else {
+        match platform {
+            Platform::Windows32 => "win32.exe",
+            Platform::Windows64 => "win64.exe",
+            Platform::MacOS => "osx.universal",
+            Platform::Linux32 => "x11.32",
+            Platform::Linux64 => "x11.64",
+            Platform::Unsupported => "unsupported",
+        }
+    };
+    format!("Godot_v{}_{}", &full_version, platform_suffix)
+}
+
 fn uninstall(proj_dirs: &ProjectDirs, version: &str) -> bool {
-    let full_version = format!("{}-stable", version);
+    let full_version = get_full_version(version);
     let engine_path = proj_dirs.data_dir()
         .join("engines")
         .join(&full_version);
@@ -126,7 +160,7 @@ async fn main() {
                     if version_path.is_dir() {
                         let file_name = entry.file_name();
                         let full_version = file_name.to_string_lossy();
-                        let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+                        let bin_name = get_binary_name(&full_version, platform);
                         let bin_path = proj_dirs.data_dir()
                             .join("engines")
                             .join(full_version.as_ref())
@@ -156,8 +190,8 @@ async fn main() {
             }
         }
         Some(Commands::Install { version, mono, force }) => {
-            let full_version = format!("{}-stable", version);
-            let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+            let full_version = get_full_version(version);
+            let bin_name = get_binary_name(&full_version, platform);
             let bin_path = proj_dirs.data_dir()
                 .join("engines")
                 .join(&full_version)
@@ -275,8 +309,8 @@ async fn main() {
         }
         Some(Commands::Launch { version }) => {
             // Try to launch the specified version.
-            let full_version = format!("{}-stable", version);
-            let bin_name = format!("Godot_v{}_{}", &full_version, platform.to_package());
+            let full_version = get_full_version(version);
+            let bin_name = get_binary_name(&full_version, platform);
             let bin_path = proj_dirs.data_dir()
                 .join("engines")
                 .join(&full_version)
