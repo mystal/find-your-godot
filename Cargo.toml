@@ -1,8 +1,12 @@
 [package]
-name = "too-many-godots"
+name = "find-your-godot"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.65"
+
+[[bin]]
+name = "fyg"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

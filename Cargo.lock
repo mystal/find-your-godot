@@ -436,6 +436,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "find-your-godot"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "confy",
+ "directories",
+ "futures",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "tokio",
+ "toml 0.7.2",
+ "zip",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1758,22 +1774,6 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
-]
-
-[[package]]
-name = "too-many-godots"
-version = "0.1.0"
-dependencies = [
- "clap",
- "confy",
- "directories",
- "futures",
- "octocrab",
- "reqwest",
- "serde",
- "tokio",
- "toml 0.7.2",
- "zip",
 ]
 
 [[package]]
