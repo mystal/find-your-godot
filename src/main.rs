@@ -1,12 +1,15 @@
 use std::{
     fs,
     io::Write,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
 use clap::{Parser, Subcommand};
-use directories::ProjectDirs;
+use directories::BaseDirs;
 use serde::Deserialize;
+
+const FYG_DIR: &str = "find-your-godot";
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true))]
@@ -52,6 +55,33 @@ enum Commands {
 
     /// Open the Godot project in the current directory in its associated Godot engine.
     Open,
+}
+
+struct FygDirs {
+    engines_data_dir: PathBuf,
+    engines_cache_dir: PathBuf,
+}
+
+impl FygDirs {
+    fn new() -> Option<Self> {
+        let base_dirs = BaseDirs::new()?;
+        Some(Self {
+            engines_data_dir: base_dirs.data_dir()
+                .join(FYG_DIR)
+                .join("engines"),
+            engines_cache_dir: base_dirs.cache_dir()
+                .join(FYG_DIR)
+                .join("engines"),
+        })
+    }
+
+    fn engines_data(&self) -> &Path {
+        &self.engines_data_dir
+    }
+
+    fn engines_cache(&self) -> &Path {
+        &self.engines_cache_dir
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,13 +146,13 @@ fn get_binary_name(full_version: &str, platform: Platform) -> String {
     format!("Godot_v{}_{}", &full_version, platform_suffix)
 }
 
-fn uninstall(proj_dirs: &ProjectDirs, version: &str) -> bool {
+fn uninstall(engines_data_dir: &Path, version: &str) -> bool {
     let full_version = get_full_version(version);
-    let engine_path = proj_dirs.data_dir()
-        .join("engines")
+    let engine_path = engines_data_dir
         .join(&full_version);
     if engine_path.is_dir() {
-        fs::remove_dir_all(engine_path).unwrap();
+        fs::remove_dir_all(engine_path)
+            .unwrap();
         return true;
     }
     return false;
@@ -154,25 +184,29 @@ async fn main() {
     } else {
         Platform::Unsupported
     };
-    let proj_dirs = directories::ProjectDirs::from("me.gabem", "Gabriel Martinez", "Too Many Godots").unwrap();
+    let fyg_dirs = FygDirs::new()
+        .expect("Could not initialize FygDirs");
 
     match &cli.command {
         Some(Commands::List { all }) => {
             if !all {
+                if !fyg_dirs.engines_data().is_dir() {
+                    return;
+                }
+
                 // Start by finding the installed versions.
-                let engines_dir = proj_dirs.data_dir()
-                    .join("engines");
-                let read_dir = fs::read_dir(&engines_dir).unwrap();
+                let read_dir = fs::read_dir(fyg_dirs.engines_data())
+                    .unwrap();
                 // By default, list just the installed versions.
                 for entry in read_dir {
-                    let entry = entry.unwrap();
+                    let entry = entry
+                        .unwrap();
                     let version_path = entry.path();
                     if version_path.is_dir() {
                         let file_name = entry.file_name();
                         let full_version = file_name.to_string_lossy();
                         let bin_name = get_binary_name(&full_version, platform);
-                        let bin_path = proj_dirs.data_dir()
-                            .join("engines")
+                        let bin_path = fyg_dirs.engines_data()
                             .join(full_version.as_ref())
                             .join(bin_name);
                         // TODO: Also check that it's executable?
@@ -202,19 +236,17 @@ async fn main() {
         Some(Commands::Install { version, mono, force }) => {
             let full_version = get_full_version(version);
             let bin_name = get_binary_name(&full_version, platform);
-            let bin_path = proj_dirs.data_dir()
-                .join("engines")
+            let bin_path = fyg_dirs.engines_data()
                 .join(&full_version)
                 .join(&bin_name);
             let zip_name = format!("{}.zip", &bin_name);
-            let zip_path = proj_dirs.cache_dir()
-                .join("engines")
+            let zip_path = fyg_dirs.engines_cache()
                 .join(&full_version)
                 .join(&zip_name);
 
             if *force {
                 // Uninstall any existing version before installing.
-                uninstall(&proj_dirs, version);
+                uninstall(fyg_dirs.engines_data(), version);
             } else {
                 // Check if we already have this version installed.
                 if bin_path.is_file() {
@@ -229,18 +261,21 @@ async fn main() {
 
                 println!("Version {} is already downloaded. Extracting from cache.", version);
 
-                let zip_file = fs::File::open(&zip_path).unwrap();
+                let zip_file = fs::File::open(&zip_path)
+                    .unwrap();
 
-                let data_dir = proj_dirs.data_dir()
-                    .join("engines")
+                let data_dir = fyg_dirs.engines_data()
                     .join(&full_version);
-                let mut archive = zip::ZipArchive::new(zip_file).unwrap();
-                archive.extract(&data_dir).unwrap();
+                let mut archive = zip::ZipArchive::new(zip_file)
+                    .unwrap();
+                archive.extract(&data_dir)
+                    .unwrap();
 
                 // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
                 // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
                 {
-                    fs::File::create(data_dir.join("_sc_")).unwrap();
+                    fs::File::create(data_dir.join("_sc_"))
+                        .unwrap();
                 }
 
                 println!("Extracted to: {}", data_dir.to_string_lossy());
@@ -270,15 +305,16 @@ async fn main() {
                         .unwrap();
 
                     // Copy content to cache directory for versions.
-                    let cache_dir = proj_dirs.cache_dir()
-                        .join("engines")
+                    let cache_dir = fyg_dirs.engines_cache()
                         .join(&full_version);
-                    fs::create_dir_all(&cache_dir).unwrap();
+                    fs::create_dir_all(&cache_dir)
+                        .unwrap();
                     let download_path = cache_dir.join(&zip_name);
                     {
-                        let mut file = fs::File::create(&download_path).unwrap();
-                        // std::io::copy(&mut content.as_ref(), &mut file).unwrap();
-                        file.write_all(&content).unwrap();
+                        let mut file = fs::File::create(&download_path)
+                            .unwrap();
+                        file.write_all(&content)
+                            .unwrap();
                     }
 
                     // TODO: Check SHA512 sum of zip.
@@ -287,17 +323,19 @@ async fn main() {
 
 
                     // Unzip downloaded file to data dir under its version.
-                    let data_dir = proj_dirs.data_dir()
-                        .join("engines")
+                    let data_dir = fyg_dirs.engines_data()
                         .join(&full_version);
                     let seekable_content = std::io::Cursor::new(content.as_ref());
-                    let mut archive = zip::ZipArchive::new(seekable_content).unwrap();
-                    archive.extract(&data_dir).unwrap();
+                    let mut archive = zip::ZipArchive::new(seekable_content)
+                        .unwrap();
+                    archive.extract(&data_dir)
+                        .unwrap();
 
                     // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
                     // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
                     {
-                        fs::File::create(data_dir.join("_sc_")).unwrap();
+                        fs::File::create(data_dir.join("_sc_"))
+                            .unwrap();
                     }
 
                     println!("Extracted to: {}", data_dir.to_string_lossy());
@@ -311,7 +349,7 @@ async fn main() {
             }
         }
         Some(Commands::Uninstall { version }) => {
-            if uninstall(&proj_dirs, version) {
+            if uninstall(fyg_dirs.engines_data(), version) {
                 println!("Uninstalled version {}", version);
             } else {
                 println!("Version {} is not installed", version);
@@ -321,8 +359,7 @@ async fn main() {
             // Try to launch the specified version.
             let full_version = get_full_version(version);
             let bin_name = get_binary_name(&full_version, platform);
-            let bin_path = proj_dirs.data_dir()
-                .join("engines")
+            let bin_path = fyg_dirs.engines_data()
                 .join(&full_version)
                 .join(bin_name);
             if bin_path.is_file() {
@@ -344,8 +381,7 @@ async fn main() {
                     // TODO: check that the version in godot_version.toml is installed.
                     let full_version = get_full_version(&project_config.version);
                     let bin_name = get_binary_name(&full_version, platform);
-                    let bin_path = proj_dirs.data_dir()
-                        .join("engines")
+                    let bin_path = fyg_dirs.engines_data()
                         .join(&full_version)
                         .join(bin_name);
                     if bin_path.is_file() {
