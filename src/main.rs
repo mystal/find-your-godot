@@ -5,6 +5,7 @@ use std::{
     process::{Command, Stdio},
 };
 
+use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 use serde::Deserialize;
@@ -154,20 +155,22 @@ fn get_binary_name(full_version: &str, platform: Platform) -> String {
     format!("Godot_v{}_{}", &full_version, platform_suffix)
 }
 
-fn uninstall(engines_data_dir: &Path, version: &str) -> bool {
+#[must_use]
+fn uninstall(engines_data_dir: &Path, version: &str) -> Result<()> {
     let full_version = get_full_version(version);
     let engine_path = engines_data_dir
         .join(&full_version);
     if engine_path.is_dir() {
-        fs::remove_dir_all(engine_path)
-            .unwrap();
-        return true;
+        fs::remove_dir_all(engine_path)?;
+        return Ok(());
     }
-    return false;
+
+    Err(anyhow!("Engine install dir \"{}\" does not exist.", engine_path.to_string_lossy()))
+        .context(format!("Could not uninstall version {}.", version))
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Compile time detection of platform we're running on.
@@ -193,22 +196,21 @@ async fn main() {
         Platform::Unsupported
     };
     let fyg_dirs = FygDirs::new()
-        .expect("Could not initialize FygDirs");
+        .ok_or(anyhow!("Could not initialize app directories."))?;
 
     match &cli.command {
         Some(Commands::List { all }) => {
             if !all {
                 if !fyg_dirs.engines_data().is_dir() {
-                    return;
+                    // Engines directory doesn't exist, so no engines installed.
+                    return Ok(());
                 }
 
                 // Start by finding the installed versions.
-                let read_dir = fs::read_dir(fyg_dirs.engines_data())
-                    .unwrap();
+                let read_dir = fs::read_dir(fyg_dirs.engines_data())?;
                 // By default, list just the installed versions.
                 for entry in read_dir {
-                    let entry = entry
-                        .unwrap();
+                    let entry = entry?;
                     let version_path = entry.path();
                     if version_path.is_dir() {
                         let file_name = entry.file_name();
@@ -219,11 +221,14 @@ async fn main() {
                             .join(bin_name);
                         // TODO: Also check that it's executable?
                         if bin_path.is_file() {
-                            println!("{}", &full_version);
+                            let version = full_version.strip_suffix("-stable")
+                                .unwrap_or(&full_version);
+                            println!("{}", &version);
                         }
                     }
                 }
-                return;
+
+                return Ok(());
             }
 
             // Query GitHub for list of Godot Releases.
@@ -232,13 +237,15 @@ async fn main() {
                 .releases()
                 .list()
                 .send()
-                .await
-                .unwrap();
+                .await?;
             // List release versions.
             // TODO: Filter out/mark ones that don't support this platform.
             // TODO: Add option for ones with mono versions.
+            // TODO: Sort by version number.
             for release in &releases.items {
-                println!("{}", &release.tag_name);
+                let release_version = release.tag_name.strip_suffix("-stable")
+                    .unwrap_or(&release.tag_name);
+                println!("{}", release_version);
             }
         }
         Some(Commands::Install { version, mono, force }) => {
@@ -254,12 +261,11 @@ async fn main() {
 
             if *force {
                 // Uninstall any existing version before installing.
-                uninstall(fyg_dirs.engines_data(), version);
+                uninstall(fyg_dirs.engines_data(), version)?;
             } else {
                 // Check if we already have this version installed.
                 if bin_path.is_file() {
-                    println!("Version {} is already installed. Pass --force to re-install.", version);
-                    return;
+                    bail!("Version {} is already installed. Pass --force to re-install.", version);
                 }
             }
 
@@ -269,25 +275,20 @@ async fn main() {
 
                 println!("Version {} is already downloaded. Extracting from cache.", version);
 
-                let zip_file = fs::File::open(&zip_path)
-                    .unwrap();
+                let zip_file = fs::File::open(&zip_path)?;
 
                 let data_dir = fyg_dirs.engines_data()
                     .join(&full_version);
-                let mut archive = zip::ZipArchive::new(zip_file)
-                    .unwrap();
-                archive.extract(&data_dir)
-                    .unwrap();
+                let mut archive = zip::ZipArchive::new(zip_file)?;
+                archive.extract(&data_dir)?;
 
                 // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
                 // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
-                {
-                    fs::File::create(data_dir.join("_sc_"))
-                        .unwrap();
-                }
+                fs::File::create(data_dir.join("_sc_"))?;
 
                 println!("Extracted to: {}", data_dir.to_string_lossy());
-                return;
+
+                return Ok(());
             }
 
             // Try to get the URL for this release.
@@ -306,23 +307,18 @@ async fn main() {
 
                     // Download the file.
                     let response = reqwest::get(package_url.as_str())
-                        .await
-                        .unwrap();
+                        .await?;
                     let content = response.bytes()
-                        .await
-                        .unwrap();
+                        .await?;
 
                     // Copy content to cache directory for versions.
                     let cache_dir = fyg_dirs.engines_cache()
                         .join(&full_version);
-                    fs::create_dir_all(&cache_dir)
-                        .unwrap();
+                    fs::create_dir_all(&cache_dir)?;
                     let download_path = cache_dir.join(&zip_name);
                     {
-                        let mut file = fs::File::create(&download_path)
-                            .unwrap();
-                        file.write_all(&content)
-                            .unwrap();
+                        let mut file = fs::File::create(&download_path)?;
+                        file.write_all(&content)?;
                     }
 
                     // TODO: Check SHA512 sum of zip.
@@ -334,34 +330,25 @@ async fn main() {
                     let data_dir = fyg_dirs.engines_data()
                         .join(&full_version);
                     let seekable_content = std::io::Cursor::new(content.as_ref());
-                    let mut archive = zip::ZipArchive::new(seekable_content)
-                        .unwrap();
-                    archive.extract(&data_dir)
-                        .unwrap();
+                    let mut archive = zip::ZipArchive::new(seekable_content)?;
+                    archive.extract(&data_dir)?;
 
                     // By default, add an _sc_ file in the same directory to make Godot use Self-Contained Mode:
                     // https://docs.godotengine.org/en/latest/tutorials/io/data_paths.html#self-contained-mode
-                    {
-                        fs::File::create(data_dir.join("_sc_"))
-                            .unwrap();
-                    }
+                    fs::File::create(data_dir.join("_sc_"))?;
 
                     println!("Extracted to: {}", data_dir.to_string_lossy());
                 } else {
-                    println!("Sorry, version \"{}\" does not support your platform.", version);
+                    bail!("Version {} does not support your platform.", version);
                 }
             } else {
-                // TODO: Handle Err cases.
-                println!("Sorry, version \"{}\" not found.", version);
+                bail!("Version {} not found.", version);
                 // TODO: Get list of releases and print available releases.
             }
         }
         Some(Commands::Uninstall { version }) => {
-            if uninstall(fyg_dirs.engines_data(), version) {
-                println!("Uninstalled version {}", version);
-            } else {
-                println!("Version {} is not installed", version);
-            }
+            uninstall(fyg_dirs.engines_data(), version)?;
+            println!("Uninstalled version {}.", version);
         }
         Some(Commands::Launch { version }) => {
             // Try to launch the specified version.
@@ -376,10 +363,9 @@ async fn main() {
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
-                    .spawn()
-                    .unwrap();
+                    .spawn()?;
             } else {
-                println!("Version {} is not installed.", version);
+                bail!("Version {} is not installed.", version);
             }
         }
         Some(Commands::Open) => {
@@ -400,18 +386,19 @@ async fn main() {
                             .stdin(Stdio::null())
                             .stdout(Stdio::null())
                             .stderr(Stdio::null())
-                            .spawn()
-                            .unwrap();
+                            .spawn()?;
                     } else {
-                        println!("Godot version {} is not installed.", &project_config.version);
+                        bail!("Godot version {} is not installed.", &project_config.version);
                     }
                 } else {
-                    println!("Could not parse godot_version.toml as valid TOML.");
+                    bail!("Could not parse godot_version.toml as valid TOML.");
                 }
             } else {
-                println!("No godot_version.toml found in this directory.");
+                bail!("No godot_version.toml found in this directory.");
             }
         }
         None => {},
     }
+    
+    Ok(())
 }

@@ -9,6 +9,7 @@ name = "fyg"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 confy = "0.5"
 directories = "4"
