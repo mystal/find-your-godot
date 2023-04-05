@@ -22,11 +22,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List Godot engine versions. By default shows only installed versions.
+    /// List Godot engine versions. Shows installed versions by default.
     List {
-        /// Show all Godot engine versions installed and available.
+        /// Show all Godot engine versions available on GitHub.
         #[arg(short, long)]
-        all: bool,
+        available: bool,
     },
 
     /// Install the given Godot engine version.
@@ -170,6 +170,16 @@ fn uninstall(engines_data_dir: &Path, version: &str) -> Result<()> {
         .context(format!("Could not uninstall version {}.", version))
 }
 
+#[must_use]
+fn is_installed(version: &str, platform: Platform, fyg_dirs: &FygDirs) -> bool {
+    let full_version = get_full_version(version);
+    let bin_name = get_binary_name(&full_version, platform);
+    let bin_path = fyg_dirs.engines_data()
+        .join(&full_version)
+        .join(&bin_name);
+    bin_path.is_file()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -200,8 +210,8 @@ async fn main() -> Result<()> {
         .ok_or(anyhow!("Could not initialize app directories."))?;
 
     match &cli.command {
-        Some(Commands::List { all }) => {
-            if !all {
+        Some(Commands::List { available }) => {
+            if !available {
                 if !fyg_dirs.engines_data().is_dir() {
                     // Engines directory doesn't exist, so no engines installed.
                     return Ok(());
@@ -250,7 +260,12 @@ async fn main() -> Result<()> {
                 for release in &page.items {
                     let release_version = release.tag_name.strip_suffix("-stable")
                         .unwrap_or(&release.tag_name);
-                    println!("{}", release_version);
+                    if is_installed(release_version, platform, &fyg_dirs) {
+                        // TODO: Bold this output like how rustup does for targets?
+                        println!("{} (installed)", release_version);
+                    } else {
+                        println!("{}", release_version);
+                    }
                 }
 
                 // Try to get the next page, if any.
