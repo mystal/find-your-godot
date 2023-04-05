@@ -8,6 +8,7 @@ use std::{
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
+use octocrab::models::repos::Release;
 use serde::Deserialize;
 
 const FYG_DIR: &str = "find-your-godot";
@@ -233,19 +234,33 @@ async fn main() -> Result<()> {
 
             // Query GitHub for list of Godot Releases.
             let octocrab = octocrab::instance();
-            let releases = octocrab.repos("godotengine", "godot")
+            let mut page = octocrab.repos("godotengine", "godot")
                 .releases()
                 .list()
+                .per_page(100)
                 .send()
                 .await?;
+
             // List release versions.
             // TODO: Filter out/mark ones that don't support this platform.
             // TODO: Add option for ones with mono versions.
             // TODO: Sort by version number.
-            for release in &releases.items {
-                let release_version = release.tag_name.strip_suffix("-stable")
-                    .unwrap_or(&release.tag_name);
-                println!("{}", release_version);
+            loop {
+                // List versions on this page.
+                for release in &page.items {
+                    let release_version = release.tag_name.strip_suffix("-stable")
+                        .unwrap_or(&release.tag_name);
+                    println!("{}", release_version);
+                }
+
+                // Try to get the next page, if any.
+                page = match octocrab
+                    .get_page::<Release>(&page.next)
+                    .await?
+                {
+                    Some(next_page) => next_page,
+                    None => break,
+                }
             }
         }
         Some(Commands::Install { version, mono, force }) => {
@@ -399,6 +414,6 @@ async fn main() -> Result<()> {
         }
         None => {},
     }
-    
+
     Ok(())
 }
