@@ -14,7 +14,7 @@ use serde::Deserialize;
 const FYG_DIR: &str = "find-your-godot";
 
 #[derive(Parser)]
-#[command(version, arg_required_else_help(true))]
+#[command(version, about, arg_required_else_help(true))]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

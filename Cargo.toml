@@ -1,8 +1,15 @@
 [package]
 name = "find-your-godot"
 version = "0.0.1"
+authors = ["Gabriel Martinez <gabe@gabem.me>"]
+description = "A version manager for the Godot game engine."
+homepage = "https://github.com/mystal/find-your-godot"
+repository = "https://github.com/mystal/find-your-godot"
+readme = "README.md"
+license = "MIT"
 edition = "2021"
 rust-version = "1.70"
+
 
 [[bin]]
 name = "fyg"
