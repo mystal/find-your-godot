@@ -13,7 +13,7 @@ and open your projects in the right engine given a `godot_version.toml`.
 $ fyg --help
 A version manager for the Godot game engine.
 
-Usage: fyg.exe [COMMAND]
+Usage: fyg [COMMAND]
 
 Commands:
   list       List Godot engine versions. Shows installed versions by default
