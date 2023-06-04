@@ -34,9 +34,9 @@ enum Commands {
         /// Which version to install. e.g. "3.5.1"
         version: String,
 
-        /// Install the Mono version with C# support.
-        #[arg(long)]
-        mono: bool,
+        // Install the Mono version with C# support.
+        // #[arg(long)]
+        // mono: bool,
 
         /// Re-install if already installed.
         #[arg(short, long)]
@@ -278,7 +278,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::Install { version, mono, force }) => {
+        Some(Commands::Install { version, force }) => {
             let full_version = get_full_version(version);
             let bin_name = get_binary_name(&full_version, platform);
             let bin_path = fyg_dirs.engines_data()
