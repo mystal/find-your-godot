@@ -57,6 +57,28 @@ enum Commands {
 
     /// Open the Godot project in the current directory in its associated Godot engine.
     Open,
+
+    /// Show or remove files from fyg's cache. Shows downloaded engine versions by default.
+    Cache {
+        #[command(subcommand)]
+        cache_command: Option<CacheCommands>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum CacheCommands {
+    /// Show downloaded engine versions in the cache.
+    Show,
+
+    /// Remove downloaded engine versions from the cache.
+    Rm {
+        /// Remove all downloaded engine versions.
+        #[arg(short, long)]
+        all: bool,
+
+        /// Which downloaded engine versions to remove. e.g. "3.5.1 4.0.3"
+        versions: Vec<String>,
+    },
 }
 
 struct FygDirs {
@@ -425,6 +447,48 @@ async fn main() -> Result<()> {
                 }
             } else {
                 bail!("No godot_version.toml found in this directory.");
+            }
+        }
+        Some(Commands::Cache { cache_command }) => {
+            match cache_command {
+                Some(CacheCommands::Show) | None => {
+                    if !fyg_dirs.engines_cache().is_dir() {
+                        // Engines cache directory doesn't exist.
+                        return Ok(());
+                    }
+
+                    let mut total_size = 0;
+
+                    // List cached engine versions.
+                    let read_dir = fs::read_dir(fyg_dirs.engines_cache())?;
+                    for entry in read_dir {
+                        let entry = entry?;
+                        let version_path = entry.path();
+                        if version_path.is_dir() {
+                            let file_name = entry.file_name();
+                            let full_version = file_name.to_string_lossy();
+                            let bin_name = get_binary_name(&full_version, platform);
+                            let zip_name = format!("{}.zip", &bin_name);
+                            let zip_path = version_path
+                                .join(&zip_name);
+                            if zip_path.is_file() {
+                                let version = full_version.strip_suffix("-stable")
+                                    .unwrap_or(&full_version);
+                                let metadata = zip_path.metadata()?;
+                                let byte_size = metadata.len();
+                                let formatted_size = humansize::format_size(byte_size, humansize::DECIMAL);
+                                println!("{} ({}): {}", &version, formatted_size, zip_path.display());
+
+                                total_size += byte_size;
+                            }
+                        }
+                    }
+
+                    // Print full size of all files in cache.
+                    let formatted_size = humansize::format_size(total_size, humansize::DECIMAL);
+                    println!("Total: {}", formatted_size);
+                }
+                Some(CacheCommands::Rm { all, versions }) => {}
             }
         }
         None => {},
