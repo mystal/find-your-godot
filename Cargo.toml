@@ -10,7 +10,6 @@ license = "MIT"
 edition = "2021"
 rust-version = "1.70"
 
-
 [[bin]]
 name = "fyg"
 path = "src/main.rs"
