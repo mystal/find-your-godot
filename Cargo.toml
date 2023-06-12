@@ -1,6 +1,6 @@
 [package]
 name = "find-your-godot"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Gabriel Martinez <gabe@gabem.me>"]
 description = "A version manager for the Godot game engine."
 homepage = "https://github.com/mystal/find-your-godot"
