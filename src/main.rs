@@ -488,7 +488,31 @@ async fn main() -> Result<()> {
                     let formatted_size = humansize::format_size(total_size, humansize::DECIMAL);
                     println!("Total: {}", formatted_size);
                 }
-                Some(CacheCommands::Rm { all, versions }) => {}
+                Some(CacheCommands::Rm { all, versions }) => {
+                    if *all {
+                        // TODO: Collect all dirs to be removed, print them, and confirm removal.
+                        let read_dir = fs::read_dir(fyg_dirs.engines_cache())?;
+                        for entry in read_dir {
+                            let entry = entry?;
+                            let version_path = entry.path();
+                            println!("Removing {}", version_path.display());
+                            fs::remove_dir_all(version_path)?;
+                        }
+                        return Ok(());
+                    }
+
+                    for version in versions {
+                        let version = version.trim();
+                        let version_path = fyg_dirs.engines_cache()
+                            .join(format!("{}-stable", version));
+                        if version_path.is_dir() {
+                            println!("Removing {}", version_path.display());
+                            fs::remove_dir_all(version_path)?;
+                        } else {
+                            println!("Cache for version \"{}\" not found", version);
+                        }
+                    }
+                }
             }
         }
         None => {},
