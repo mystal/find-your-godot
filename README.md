@@ -76,3 +76,23 @@ $ cd path/to/project
 $ fyg open
 ```
 And Godot should launch with your project open!
+
+## Managing Download Cache
+`fyg` caches downloads in a separate directory from where it installs engine files. You can manage the cache with the `cache` command.
+
+By default it `show`s files in the cache:
+```
+$ fyg cache
+4.0 (51.58 MB): C:\Users\MyUser\AppData\Local\find-your-godot\cache\engines\4.0-stable\Godot_v4.0-stable_win64.exe.zip
+4.0.1 (52.00 MB): C:\Users\MyUser\AppData\Local\find-your-godot\cache\engines\4.0.1-stable\Godot_v4.0.1-stable_win64.exe.zip
+Total: 103.59 MB
+```
+
+And you can remove engine cache files with the `rm` subcommand:
+```
+$ fyg cache rm 4.0.1
+$ Removing C:\Users\MyUser\AppData\Local\find-your-godot\cache\engines\4.0.1-stable
+$ fyg cache
+4.0 (51.58 MB): C:\Users\MyUser\AppData\Local\find-your-godot\cache\engines\4.0-stable\Godot_v4.0-stable_win64.exe.zip
+Total: 51.58 MB
+```
