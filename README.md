@@ -21,6 +21,7 @@ Commands:
   uninstall  Uninstall the given Godot engine version
   launch     Launch the given Godot engine version
   open       Open the Godot project in the current directory in its associated Godot engine
+  cache      Show or remove files from fyg's cache. Shows downloaded engine versions by default
   help       Print this message or the help of the given subcommand(s)
 
 Options:
