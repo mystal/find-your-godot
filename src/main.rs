@@ -1,148 +1,23 @@
 use std::{
     fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
 };
 
 use anyhow::{anyhow, bail, Context, Result};
-use clap::{Parser, Subcommand};
-use directories::BaseDirs;
 use octocrab::models::repos::Release;
-use serde::Deserialize;
 
-const FYG_DIR: &str = "find-your-godot";
+use crate::{
+    config::ProjectGodotVersionConfig,
+    dirs::FygDirs,
+    platform::Platform,
+};
 
-#[derive(Parser)]
-#[command(version, about, arg_required_else_help(true))]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// List Godot engine versions. Shows installed versions by default.
-    List {
-        /// Show all Godot engine versions available on GitHub.
-        #[arg(short, long)]
-        available: bool,
-    },
-
-    /// Install the given Godot engine version.
-    Install {
-        /// Which version to install. e.g. "3.5.1"
-        version: String,
-
-        // Install the Mono version with C# support.
-        // #[arg(long)]
-        // mono: bool,
-
-        /// Re-install if already installed.
-        #[arg(short, long)]
-        force: bool,
-    },
-
-    /// Uninstall the given Godot engine version.
-    Uninstall {
-        /// Which version to uninstall. e.g. "3.5.1"
-        version: String,
-    },
-
-    /// Launch the given Godot engine version.
-    Launch {
-        /// Which version to launch. e.g. "3.5.1"
-        version: String,
-    },
-
-    /// Open the Godot project in the current directory in its associated Godot engine.
-    Open,
-
-    /// Show or remove files from fyg's cache. Shows downloaded engine versions by default.
-    Cache {
-        #[command(subcommand)]
-        cache_command: Option<CacheCommands>,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum CacheCommands {
-    /// Show downloaded engine versions in the cache.
-    Show,
-
-    /// Remove downloaded engine versions from the cache.
-    Rm {
-        /// Remove all downloaded engine versions.
-        #[arg(short, long)]
-        all: bool,
-
-        /// Which downloaded engine versions to remove. e.g. "3.5.1 4.0.3"
-        versions: Vec<String>,
-    },
-}
-
-struct FygDirs {
-    engines_data_dir: PathBuf,
-    engines_cache_dir: PathBuf,
-}
-
-impl FygDirs {
-    fn new() -> Option<Self> {
-        let base_dirs = BaseDirs::new()?;
-
-        let mut engines_cache_dir = base_dirs.cache_dir()
-            .join(FYG_DIR);
-        // Add an intermediate cache directory on Windows since it's placed in ~/AppData/Local
-        // with other things by default.
-        if cfg!(target_os = "windows") {
-            engines_cache_dir.push("cache");
-        }
-        engines_cache_dir.push("engines");
-
-        Some(Self {
-            engines_data_dir: base_dirs.data_dir()
-                .join(FYG_DIR)
-                .join("engines"),
-            engines_cache_dir,
-        })
-    }
-
-    fn engines_data(&self) -> &Path {
-        &self.engines_data_dir
-    }
-
-    fn engines_cache(&self) -> &Path {
-        &self.engines_cache_dir
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct ProjectGodotVersionConfig {
-    version: String,
-}
-
-#[derive(Clone, Copy, Debug)]
-enum Platform {
-    Windows32,
-    Windows64,
-    MacOS,
-    Linux32,
-    Linux64,
-    Unsupported,
-}
-
-impl Platform {
-    fn to_package(&self) -> &'static str {
-        match self {
-            Platform::Windows32 => "win32.exe",
-            Platform::Windows64 => "win64.exe",
-            Platform::MacOS => "osx.universal",
-            Platform::Linux32 => "x11.32",
-            Platform::Linux64 => "x11.64",
-            Platform::Unsupported => "unsupported",
-        }
-    }
-}
+mod cli;
+mod config;
+mod dirs;
+mod platform;
 
 fn get_full_version(version: &str) -> String {
     // TODO: Use a more thorough heuristic.
@@ -204,7 +79,10 @@ fn is_installed(version: &str, platform: Platform, fyg_dirs: &FygDirs) -> bool {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    use clap::Parser;
+    use cli::{CacheCommands, Commands};
+
+    let cli = cli::Cli::parse();
 
     // Compile time detection of platform we're running on.
     let platform = if cfg!(target_os = "windows") {
@@ -421,32 +299,26 @@ async fn main() -> Result<()> {
             }
         }
         Some(Commands::Open) => {
-            // TODO: check for project.godot and godot_version.toml
-            if let Ok(project_config_str) = fs::read_to_string("godot_version.toml") {
-                if let Ok(project_config) = toml::from_str::<ProjectGodotVersionConfig>(&project_config_str) {
-                    // TODO: check that the version in godot_version.toml is installed.
-                    let full_version = get_full_version(&project_config.version);
-                    let bin_name = get_binary_name(&full_version, platform);
-                    let bin_path = fyg_dirs.engines_data()
-                        .join(&full_version)
-                        .join(bin_name);
-                    if bin_path.is_file() {
-                        // Run Godot with the given project!!
-                        println!("Opening project in: {}", bin_path.to_string_lossy());
-                        Command::new(&bin_path)
-                            .arg("project.godot")
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()?;
-                    } else {
-                        bail!("Godot version {} is not installed.", &project_config.version);
-                    }
-                } else {
-                    bail!("Could not parse godot_version.toml as valid TOML.");
-                }
+            // TODO: Check for project.godot and godot_version.toml
+            let project_config = ProjectGodotVersionConfig::load()?;
+
+            // Check that the project's Godot version is installed.
+            let full_version = get_full_version(&project_config.version);
+            let bin_name = get_binary_name(&full_version, platform);
+            let bin_path = fyg_dirs.engines_data()
+                .join(&full_version)
+                .join(bin_name);
+            if bin_path.is_file() {
+                // Run Godot with the given project!!
+                println!("Opening project in: {}", bin_path.to_string_lossy());
+                Command::new(&bin_path)
+                    .arg("project.godot")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?;
             } else {
-                bail!("No godot_version.toml found in this directory.");
+                bail!("Can't open project. Godot version {} is not installed.", &project_config.version);
             }
         }
         Some(Commands::Cache { cache_command }) => {
