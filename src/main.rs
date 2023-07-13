@@ -109,8 +109,12 @@ async fn main() -> Result<()> {
     let fyg_dirs = FygDirs::new()
         .ok_or(anyhow!("Could not initialize app directories."))?;
 
-    match &cli.command {
-        Some(Commands::List { available }) => {
+    // Unwrap should always work since clap will return early if no command is passed in.
+    // See cli::Cli, which sets arg_required_else_help(true).
+    let command = cli.command.unwrap();
+
+    match &command {
+        Commands::List { available } => {
             if !available {
                 if !fyg_dirs.engines_data().is_dir() {
                     // Engines directory doesn't exist, so no engines installed.
@@ -178,7 +182,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::Install { version, force }) => {
+        Commands::Install { version, force } => {
             let full_version = get_full_version(version);
             let bin_name = get_binary_name(&full_version, platform);
             let bin_path = fyg_dirs.engines_data()
@@ -276,11 +280,11 @@ async fn main() -> Result<()> {
                 // TODO: Get list of releases and print available releases.
             }
         }
-        Some(Commands::Uninstall { version }) => {
+        Commands::Uninstall { version } => {
             uninstall(fyg_dirs.engines_data(), version)?;
             println!("Uninstalled version {}.", version);
         }
-        Some(Commands::Launch { version }) => {
+        Commands::Launch { version } => {
             // Try to launch the specified version.
             let full_version = get_full_version(version);
             let bin_name = get_binary_name(&full_version, platform);
@@ -298,7 +302,7 @@ async fn main() -> Result<()> {
                 bail!("Version {} is not installed.", version);
             }
         }
-        Some(Commands::Open) => {
+        Commands::Open => {
             // TODO: Check for project.godot and godot_version.toml
             let project_config = ProjectGodotVersionConfig::load()?;
 
@@ -321,7 +325,7 @@ async fn main() -> Result<()> {
                 bail!("Can't open project. Godot version {} is not installed.", &project_config.version);
             }
         }
-        Some(Commands::Cache { cache_command }) => {
+        Commands::Cache { cache_command } => {
             match cache_command {
                 Some(CacheCommands::Show) | None => {
                     if !fyg_dirs.engines_cache().is_dir() {
@@ -387,7 +391,6 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        None => {},
     }
 
     Ok(())
