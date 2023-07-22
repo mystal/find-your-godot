@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
-use octocrab::models::repos::Release;
 
 use crate::{
     config::ProjectGodotVersionConfig,
@@ -115,6 +114,8 @@ async fn main() -> Result<()> {
 
     match &command {
         Commands::List { available } => {
+            use octocrab::models::repos::Release;
+
             if !available {
                 if !fyg_dirs.engines_data().is_dir() {
                     // Engines directory doesn't exist, so no engines installed.
