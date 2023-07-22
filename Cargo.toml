@@ -17,13 +17,25 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-confy = "0.5"
-directories = "4"
+# Removed for now, though we might use it in the future for config files.
+#confy = "0.5"
+directories = "5"
 futures = "0.3"
 humansize = "2"
-octocrab = "0.18"
 reqwest = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 toml = "0.7"
 zip = { version = "0.6", default-features = false, features = ["deflate", "time"] }
+
+[dependencies.octocrab]
+version = "0.28"
+default-features = false
+features = [
+    # Enable default features, but use platform-native TLS instead of rustls.
+    # See: https://github.com/XAMPPRocky/octocrab/blob/v0.28.0/Cargo.toml#L68
+    "timeout",
+    "tracing",
+    "retry",
+    "opentls",
+]
