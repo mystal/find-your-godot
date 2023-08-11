@@ -18,6 +18,8 @@ mod config;
 mod dirs;
 mod platform;
 
+const PROJECT_GODOT: &str = "project.godot";
+
 fn get_full_version(version: &str) -> String {
     // TODO: Use a more thorough heuristic.
     if version.contains('-') {
@@ -295,6 +297,7 @@ async fn main() -> Result<()> {
             if bin_path.is_file() {
                 println!("Running: {}", bin_path.to_string_lossy());
                 Command::new(&bin_path)
+                    .arg("--project-manager")
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
@@ -303,9 +306,13 @@ async fn main() -> Result<()> {
                 bail!("Version {} is not installed.", version);
             }
         }
-        Commands::Open => {
-            // TODO: Check for project.godot and godot_version.toml
+        Commands::Edit => {
             let project_config = ProjectGodotVersionConfig::load()?;
+
+            // Check for project.godot in this directory.
+            if !Path::new(PROJECT_GODOT).is_file() {
+                bail!("No project.godot file in this directory.");
+            }
 
             // Check that the project's Godot version is installed.
             let full_version = get_full_version(&project_config.version);
@@ -313,18 +320,19 @@ async fn main() -> Result<()> {
             let bin_path = fyg_dirs.engines_data()
                 .join(&full_version)
                 .join(bin_name);
-            if bin_path.is_file() {
-                // Run Godot with the given project!!
-                println!("Opening project in: {}", bin_path.to_string_lossy());
-                Command::new(&bin_path)
-                    .arg("project.godot")
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn()?;
-            } else {
-                bail!("Can't open project. Godot version {} is not installed.", &project_config.version);
+            if !bin_path.is_file() {
+                bail!("Can't edit project. Godot version {} is not installed.", &project_config.version);
             }
+
+            // Run Godot with the given project!!
+            println!("Editing project with: {}", bin_path.to_string_lossy());
+            Command::new(&bin_path)
+                .arg("--editor")
+                .arg(PROJECT_GODOT)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?;
         }
         Commands::Cache { cache_command } => {
             match cache_command {

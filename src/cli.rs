@@ -42,8 +42,8 @@ pub enum Commands {
         version: String,
     },
 
-    /// Open the Godot project in the current directory in its associated Godot engine.
-    Open,
+    /// Edit the Godot project in the current directory in its associated Godot engine.
+    Edit,
 
     /// Show or remove files from fyg's cache. Shows downloaded engine versions by default.
     Cache {
