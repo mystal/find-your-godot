@@ -245,7 +245,11 @@ async fn main() -> Result<()> {
                 .find(|asset| asset.name == zip_name)
                 .map(|asset| &asset.browser_download_url);
             let Some(package_url) = maybe_url else {
-                bail!("Version {} does not support your platform.", version);
+                bail!(
+                    "Version {} does not support your platform.\nTuxFamily may have a build available: https://downloads.tuxfamily.org/godotengine/{}/",
+                    version,
+                    version,
+                );
             };
 
             println!("Package URL: {}", package_url);
