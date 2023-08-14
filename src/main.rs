@@ -11,22 +11,19 @@ use crate::{
     config::ProjectGodotVersionConfig,
     dirs::FygDirs,
     platform::Platform,
+    version::GodotVersion,
 };
 
 mod cli;
 mod config;
 mod dirs;
 mod platform;
+mod version;
 
 const PROJECT_GODOT: &str = "project.godot";
 
-fn get_full_version(version: &str) -> String {
-    // TODO: Use a more thorough heuristic.
-    if version.contains('-') {
-        version.to_string()
-    } else {
-        format!("{}-stable", version)
-    }
+fn get_full_version(version: &GodotVersion) -> String {
+    version.to_full_version()
 }
 
 fn get_binary_name(full_version: &str, platform: Platform) -> String {
@@ -55,7 +52,7 @@ fn get_binary_name(full_version: &str, platform: Platform) -> String {
 }
 
 #[must_use]
-fn uninstall(engines_data_dir: &Path, version: &str) -> Result<()> {
+fn uninstall(engines_data_dir: &Path, version: &GodotVersion) -> Result<()> {
     let full_version = get_full_version(version);
     let engine_path = engines_data_dir
         .join(&full_version);
@@ -69,7 +66,7 @@ fn uninstall(engines_data_dir: &Path, version: &str) -> Result<()> {
 }
 
 #[must_use]
-fn is_installed(version: &str, platform: Platform, fyg_dirs: &FygDirs) -> bool {
+fn is_installed(version: &GodotVersion, platform: Platform, fyg_dirs: &FygDirs) -> bool {
     let full_version = get_full_version(version);
     let bin_name = get_binary_name(&full_version, platform);
     let bin_path = fyg_dirs.engines_data()
@@ -85,28 +82,8 @@ async fn main() -> Result<()> {
 
     let cli = cli::Cli::parse();
 
-    // Compile time detection of platform we're running on.
-    let platform = if cfg!(target_os = "windows") {
-        if cfg!(target_arch = "x86") {
-            Platform::Windows32
-        } else if cfg!(target_arch = "x86_64") {
-            Platform::Windows64
-        } else {
-            Platform::Unsupported
-        }
-    } else if cfg!(target_os = "macos") {
-        Platform::MacOS
-    } else if cfg!(target_os = "linux") {
-        if cfg!(target_arch = "x86") {
-            Platform::Linux32
-        } else if cfg!(target_arch = "x86_64") {
-            Platform::Linux64
-        } else {
-            Platform::Unsupported
-        }
-    } else {
-        Platform::Unsupported
-    };
+    let platform = Platform::get();
+
     let fyg_dirs = FygDirs::new()
         .ok_or(anyhow!("Could not initialize app directories."))?;
 
@@ -165,9 +142,8 @@ async fn main() -> Result<()> {
             loop {
                 // List versions on this page.
                 for release in &page.items {
-                    let release_version = release.tag_name.strip_suffix("-stable")
-                        .unwrap_or(&release.tag_name);
-                    if is_installed(release_version, platform, &fyg_dirs) {
+                    let release_version = GodotVersion::parse(&release.tag_name)?;
+                    if is_installed(&release_version, platform, &fyg_dirs) {
                         // TODO: Bold this output like how rustup does for targets?
                         println!("{} (installed)", release_version);
                     } else {
@@ -186,7 +162,8 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Install { version, force } => {
-            let full_version = get_full_version(version);
+            let version = GodotVersion::parse(version)?;
+            let full_version = get_full_version(&version);
             let bin_name = get_binary_name(&full_version, platform);
             let bin_path = fyg_dirs.engines_data()
                 .join(&full_version)
@@ -198,7 +175,7 @@ async fn main() -> Result<()> {
 
             if *force {
                 // Uninstall any existing version before installing.
-                uninstall(fyg_dirs.engines_data(), version)?;
+                uninstall(fyg_dirs.engines_data(), &version)?;
             } else {
                 // Check if we already have this version installed.
                 if bin_path.is_file() {
@@ -288,12 +265,14 @@ async fn main() -> Result<()> {
             println!("Extracted to: {}", data_dir.to_string_lossy());
         }
         Commands::Uninstall { version } => {
-            uninstall(fyg_dirs.engines_data(), version)?;
+            let version = GodotVersion::parse(version)?;
+            uninstall(fyg_dirs.engines_data(), &version)?;
             println!("Uninstalled version {}.", version);
         }
         Commands::Launch { version } => {
             // Try to launch the specified version.
-            let full_version = get_full_version(version);
+            let version = GodotVersion::parse(version)?;
+            let full_version = get_full_version(&version);
             let bin_name = get_binary_name(&full_version, platform);
             let bin_path = fyg_dirs.engines_data()
                 .join(&full_version)

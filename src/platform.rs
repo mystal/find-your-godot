@@ -9,6 +9,31 @@ pub enum Platform {
 }
 
 impl Platform {
+    pub fn get() -> Self {
+        // Compile time detection of platform we're running on.
+        if cfg!(target_os = "windows") {
+            if cfg!(target_arch = "x86") {
+                Platform::Windows32
+            } else if cfg!(target_arch = "x86_64") {
+                Platform::Windows64
+            } else {
+                Platform::Unsupported
+            }
+        } else if cfg!(target_os = "macos") {
+            Platform::MacOS
+        } else if cfg!(target_os = "linux") {
+            if cfg!(target_arch = "x86") {
+                Platform::Linux32
+            } else if cfg!(target_arch = "x86_64") {
+                Platform::Linux64
+            } else {
+                Platform::Unsupported
+            }
+        } else {
+            Platform::Unsupported
+        }
+    }
+
     pub fn to_package(&self) -> &'static str {
         match self {
             Platform::Windows32 => "win32.exe",

@@ -23,6 +23,7 @@ directories = "5"
 futures = "0.3"
 humansize = "2"
 reqwest = "0.11"
+semver = "1"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 toml = "0.7"

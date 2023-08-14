@@ -3,9 +3,11 @@ use std::fs;
 use anyhow::{Result, Context};
 use serde::Deserialize;
 
+use crate::version::GodotVersion;
+
 #[derive(Debug, Deserialize)]
 pub struct ProjectGodotVersionConfig {
-    pub version: String,
+    pub version: GodotVersion,
 }
 
 impl ProjectGodotVersionConfig {
