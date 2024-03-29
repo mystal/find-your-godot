@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use owo_colors::OwoColorize;
 
 use crate::{
     config::ProjectGodotVersionConfig,
@@ -168,8 +169,8 @@ async fn main() -> Result<()> {
                     let release_version = release.tag_name.strip_suffix("-stable")
                         .unwrap_or(&release.tag_name);
                     if is_installed(release_version, platform, &fyg_dirs) {
-                        // TODO: Bold this output like how rustup does for targets?
-                        println!("{} (installed)", release_version);
+                        let installed = format!("{} (installed)", release_version);
+                        println!("{}", installed.bold());
                     } else {
                         println!("{}", release_version);
                     }
