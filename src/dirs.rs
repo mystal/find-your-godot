@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use directories::BaseDirs;
 
@@ -10,8 +11,18 @@ pub struct FygDirs {
 }
 
 impl FygDirs {
-    pub fn new() -> Option<Self> {
-        let base_dirs = BaseDirs::new()?;
+    pub fn get() -> &'static Self {
+        static DIRS: OnceLock<FygDirs> = OnceLock::new();
+        DIRS.get_or_init(|| Self::new())
+    }
+
+    pub fn new() -> Self {
+        let Some(base_dirs) = BaseDirs::new() else {
+            return Self {
+                engines_data_dir: PathBuf::new(),
+                engines_cache_dir: PathBuf::new(),
+            }
+        };
 
         let mut engines_cache_dir = base_dirs.cache_dir()
             .join(FYG_DIR);
@@ -22,12 +33,12 @@ impl FygDirs {
         }
         engines_cache_dir.push("engines");
 
-        Some(Self {
+        Self {
             engines_data_dir: base_dirs.data_dir()
                 .join(FYG_DIR)
                 .join("engines"),
             engines_cache_dir,
-        })
+        }
     }
 
     pub fn engines_data(&self) -> &Path {
@@ -36,5 +47,10 @@ impl FygDirs {
 
     pub fn engines_cache(&self) -> &Path {
         &self.engines_cache_dir
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.engines_cache_dir.as_os_str().is_empty() &&
+            !self.engines_data_dir.as_os_str().is_empty()
     }
 }

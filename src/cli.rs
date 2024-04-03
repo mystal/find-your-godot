@@ -4,11 +4,11 @@ use clap::{Parser, Subcommand};
 #[command(version, about, arg_required_else_help(true))]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub command: Option<CliCommand>,
 }
 
 #[derive(Subcommand)]
-pub enum Commands {
+pub enum CliCommand {
     /// List Godot engine versions. Shows installed versions by default.
     List {
         /// Show all Godot engine versions available on GitHub.
@@ -48,12 +48,12 @@ pub enum Commands {
     /// Show or remove files from fyg's cache. Shows downloaded engine versions by default.
     Cache {
         #[command(subcommand)]
-        cache_command: Option<CacheCommands>,
+        cache_command: Option<CacheCommand>,
     },
 }
 
 #[derive(Debug, Subcommand)]
-pub enum CacheCommands {
+pub enum CacheCommand {
     /// Show downloaded engine versions in the cache.
     Show,
 
