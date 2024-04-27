@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+// TODO: Set long_version to include commit hash, branch, and build date.
 #[derive(Parser)]
 #[command(version, about, arg_required_else_help(true))]
 pub struct Cli {
@@ -9,6 +10,9 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum CliCommand {
+    /// Show information about the Godot project in this directory.
+    Show,
+
     /// List Godot engine versions. Shows installed versions by default.
     List {
         /// Show all Godot engine versions available on GitHub.

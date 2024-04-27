@@ -16,6 +16,7 @@ mod edit;
 mod install;
 mod launch;
 mod list;
+mod show;
 mod uninstall;
 
 pub fn get_binary_name(full_version: &str) -> String {
@@ -63,6 +64,7 @@ pub async fn run_command(command: &Option<CliCommand>) -> Result<()> {
     };
 
     match &command {
+        CliCommand::Show => show::cmd(),
         CliCommand::List { available } => list::cmd(*available).await,
         CliCommand::Install { version, force } => install::cmd(version, *force).await,
         CliCommand::Uninstall { version } => uninstall::cmd(version),
