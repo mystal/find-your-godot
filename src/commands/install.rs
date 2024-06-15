@@ -6,7 +6,7 @@ use std::{
 use anyhow::{bail, Result};
 
 use crate::{
-    commands::uninstall,
+    commands::uninstall::uninstall,
     dirs::FygDirs,
     version::GodotVersion,
 };
@@ -15,22 +15,12 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
     let version = GodotVersion::new(version, mono);
     let fyg_dirs = FygDirs::get();
 
-    // TODO: get_full_version should return "{version}-{pre_release/stable}", not including "mono"
-    // TODO: And make a different method to return the directory/binary prefix.
-
-    let full_version = version.get_full_version();
-    let bin_name = version.get_binary_name();
-    let bin_path = fyg_dirs.engines_data()
-        .join(&full_version)
-        .join(&bin_name);
-    let zip_name = format!("{}.zip", &bin_name);
-    let zip_path = fyg_dirs.engines_cache()
-        .join(&full_version)
-        .join(&zip_name);
+    let bin_path = fyg_dirs.get_binary_path(&version);
+    let zip_path = fyg_dirs.get_cached_zip_path(&version);
 
     if force {
         // Uninstall any existing version before installing.
-        uninstall(fyg_dirs.engines_data(), &version)?;
+        uninstall(&version)?;
     } else {
         // Check if we already have this version installed.
         if bin_path.is_file() {
@@ -46,8 +36,7 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
 
         let zip_file = fs::File::open(&zip_path)?;
 
-        let data_dir = fyg_dirs.engines_data()
-            .join(&full_version);
+        let data_dir = bin_path.parent().unwrap();
         let mut archive = zip::ZipArchive::new(zip_file)?;
         archive.extract(&data_dir)?;
 
@@ -59,6 +48,8 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
 
         return Ok(());
     }
+
+    let full_version = version.get_full_version();
 
     // Try to get the URL for this release.
     let octocrab = octocrab::instance();
@@ -72,10 +63,16 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
         // TODO: Get list of releases and print available releases.
     };
 
+    let zip_name = version.get_zip_name();
+
     // Download package for this platform.
     let maybe_url = release.assets.iter()
         .find(|asset| asset.name == zip_name)
         .map(|asset| &asset.browser_download_url);
+    dbg!(&zip_name);
+    for asset in &release.assets {
+        dbg!(&asset.name);
+    }
     let Some(package_url) = maybe_url else {
         bail!(
             "Version {} does not support your platform.\nTuxFamily may have a build available: https://downloads.tuxfamily.org/godotengine/{}/",
@@ -87,28 +84,25 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
     println!("Package URL: {}", package_url);
 
     // Download the file.
-    let response = reqwest::get(package_url.as_str())
-        .await?;
-    let content = response.bytes()
-        .await?;
+    let response = reqwest::get(package_url.as_str()).await?;
+    let content = response.bytes().await?;
 
     // Copy content to cache directory for versions.
-    let cache_dir = fyg_dirs.engines_cache()
-        .join(&full_version);
+    let cache_dir = zip_path.parent().unwrap();
     fs::create_dir_all(&cache_dir)?;
-    let download_path = cache_dir.join(&zip_name);
     {
-        let mut file = fs::File::create(&download_path)?;
+        let mut file = fs::File::create(&zip_path)?;
         file.write_all(&content)?;
     }
 
     // TODO: Check SHA512 sum of zip.
 
-    println!("Downloaded to: {}", download_path.to_string_lossy());
+    println!("Downloaded to: {}", zip_path.to_string_lossy());
 
     // Unzip downloaded file to data dir under its version.
-    let data_dir = fyg_dirs.engines_data()
-        .join(&full_version);
+    // TODO: When unzipping a mono version, the contents contain a parent directory that needs to be
+    // dealt wtih.
+    let data_dir = bin_path.parent().unwrap();
     let seekable_content = std::io::Cursor::new(content.as_ref());
     let mut archive = zip::ZipArchive::new(seekable_content)?;
     archive.extract(&data_dir)?;

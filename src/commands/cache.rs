@@ -34,13 +34,8 @@ pub fn cmd(cache_command: &Option<CacheCommand>) -> Result<()> {
                         (full_version.as_ref(), false)
                     };
                     let version = GodotVersion::new(full_version, mono);
-                    let bin_name = version.get_binary_name();
-                    let zip_name = format!("{}.zip", &bin_name);
-                    let zip_path = version_path
-                        .join(&zip_name);
+                    let zip_path = fyg_dirs.get_cached_zip_path(&version);
                     if zip_path.is_file() {
-                        let version = full_version.strip_suffix("-stable")
-                            .unwrap_or(&full_version);
                         let metadata = zip_path.metadata()?;
                         let byte_size = metadata.len();
                         let formatted_size = humansize::format_size(byte_size, humansize::DECIMAL);
@@ -55,7 +50,7 @@ pub fn cmd(cache_command: &Option<CacheCommand>) -> Result<()> {
             let formatted_size = humansize::format_size(total_size, humansize::DECIMAL);
             println!("Total: {}", formatted_size);
         }
-        Some(CacheCommand::Rm { all, versions }) => {
+        Some(CacheCommand::Rm { all, mono, versions }) => {
             if *all {
                 // TODO: Collect all dirs to be removed, print them, and confirm removal.
                 let read_dir = fs::read_dir(fyg_dirs.engines_cache())?;
@@ -69,9 +64,9 @@ pub fn cmd(cache_command: &Option<CacheCommand>) -> Result<()> {
             }
 
             for version in versions {
-                let version = version.trim();
-                let version_path = fyg_dirs.engines_cache()
-                    .join(format!("{}-stable", version));
+                let version = GodotVersion::new(version.trim(), *mono);
+                let zip_path = fyg_dirs.get_cached_zip_path(&version);
+                let version_path = zip_path.parent().unwrap();
                 if version_path.is_dir() {
                     println!("Removing {}", version_path.display());
                     fs::remove_dir_all(version_path)?;

@@ -12,12 +12,7 @@ pub fn cmd(version: &str, mono: bool) -> Result<()> {
     let fyg_dirs = FygDirs::get();
 
     // Try to launch the specified version.
-    let full_version = version.get_full_version();
-    let bin_name = version.get_binary_name();
-    let bin_path = fyg_dirs.engines_data()
-        .join(&full_version)
-        .join(bin_name);
-
+    let bin_path = fyg_dirs.get_binary_path(&version);
     if !bin_path.is_file() {
         bail!("Version {} is not installed.", &version);
     }

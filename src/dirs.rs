@@ -3,6 +3,8 @@ use std::sync::OnceLock;
 
 use directories::BaseDirs;
 
+use crate::version::GodotVersion;
+
 const FYG_DIR: &str = "find-your-godot";
 
 pub struct FygDirs {
@@ -52,5 +54,18 @@ impl FygDirs {
     pub fn is_valid(&self) -> bool {
         !self.engines_cache_dir.as_os_str().is_empty() &&
             !self.engines_data_dir.as_os_str().is_empty()
+    }
+
+    pub fn get_cached_zip_path(&self, version: &GodotVersion) -> PathBuf {
+        let zip_name = version.get_zip_name();
+        self.engines_cache()
+            .join(version.get_full_version_with_flavor())
+            .join(&zip_name)
+    }
+
+    pub fn get_binary_path(&self, version: &GodotVersion) -> PathBuf {
+        self.engines_data()
+            .join(version.get_full_version_with_flavor())
+            .join(version.get_binary_name())
     }
 }

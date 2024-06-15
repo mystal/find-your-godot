@@ -22,7 +22,7 @@ pub enum CliCommand {
         version: String,
 
         // Install the Mono flavor of Godot with C# support
-        #[arg(long)]
+        #[arg(short, long)]
         mono: bool,
 
         /// Re-install if already installed.
@@ -36,7 +36,7 @@ pub enum CliCommand {
         version: String,
 
         /// Uninstall the mono flavor of Godot
-        #[arg(long)]
+        #[arg(short, long)]
         mono: bool,
     },
 
@@ -46,7 +46,7 @@ pub enum CliCommand {
         version: String,
 
         /// Launch the mono flavor of Godot with C# support
-        #[arg(long)]
+        #[arg(short, long)]
         mono: bool,
     },
 
@@ -67,9 +67,13 @@ pub enum CacheCommand {
 
     /// Remove downloaded engine versions from the cache.
     Rm {
-        /// Remove all downloaded engine versions.
+        /// Remove all downloaded engine versions of all flavors.
         #[arg(short, long)]
         all: bool,
+
+        /// Target Mono flavor of engine versions. Only used when not removing all
+        #[arg(short, long)]
+        mono: bool,
 
         /// Which downloaded engine versions to remove. e.g. "3.5.1 4.0.3"
         versions: Vec<String>,
