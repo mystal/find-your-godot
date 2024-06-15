@@ -6,16 +6,17 @@ use std::{
 use anyhow::{bail, Result};
 
 use crate::{
-    commands::{get_binary_name, uninstall},
+    commands::uninstall,
     dirs::FygDirs,
-    version::get_full_version,
+    version::GodotVersion,
 };
 
-pub async fn cmd(version: &str, force: bool) -> Result<()> {
+pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
+    let version = GodotVersion::new(version, mono);
     let fyg_dirs = FygDirs::get();
 
-    let full_version = get_full_version(version);
-    let bin_name = get_binary_name(&full_version);
+    let full_version = version.get_full_version();
+    let bin_name = version.get_binary_name();
     let bin_path = fyg_dirs.engines_data()
         .join(&full_version)
         .join(&bin_name);
@@ -26,7 +27,7 @@ pub async fn cmd(version: &str, force: bool) -> Result<()> {
 
     if force {
         // Uninstall any existing version before installing.
-        uninstall(fyg_dirs.engines_data(), version)?;
+        uninstall(fyg_dirs.engines_data(), &version)?;
     } else {
         // Check if we already have this version installed.
         if bin_path.is_file() {

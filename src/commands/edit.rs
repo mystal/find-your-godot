@@ -6,10 +6,9 @@ use std::{
 use anyhow::{bail, Result};
 
 use crate::{
-    commands::get_binary_name,
     config::ProjectGodotVersionConfig,
     dirs::FygDirs,
-    version::get_full_version,
+    version::GodotVersion,
 };
 
 const PROJECT_GODOT: &str = "project.godot";
@@ -22,11 +21,12 @@ pub fn cmd() -> Result<()> {
         bail!("No project.godot file in this directory.");
     }
 
+    let version = GodotVersion::new(&project_config.version, project_config.mono);
     let fyg_dirs = FygDirs::get();
 
     // Check that the project's Godot version is installed.
-    let full_version = get_full_version(&project_config.version);
-    let bin_name = get_binary_name(&full_version);
+    let full_version = version.get_full_version();
+    let bin_name = version.get_binary_name();
     let bin_path = fyg_dirs.engines_data()
         .join(&full_version)
         .join(bin_name);

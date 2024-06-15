@@ -6,6 +6,8 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct ProjectGodotVersionConfig {
     pub version: String,
+    #[serde(default)]
+    pub mono: bool,
 }
 
 impl ProjectGodotVersionConfig {

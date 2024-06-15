@@ -5,15 +5,14 @@ use octocrab::models::repos::Release;
 use owo_colors::OwoColorize;
 
 use crate::{
-    commands::get_binary_name,
     dirs::FygDirs,
-    version::get_full_version,
+    version::GodotVersion,
 };
 
 #[must_use]
-fn is_installed(version: &str, fyg_dirs: &FygDirs) -> bool {
-    let full_version = get_full_version(version);
-    let bin_name = get_binary_name(&full_version);
+fn is_installed(version: &GodotVersion, fyg_dirs: &FygDirs) -> bool {
+    let full_version = version.get_full_version();
+    let bin_name = version.get_binary_name();
     let bin_path = fyg_dirs.engines_data()
         .join(&full_version)
         .join(&bin_name);
@@ -38,14 +37,18 @@ pub async fn cmd(available: bool) -> Result<()> {
             if version_path.is_dir() {
                 let file_name = entry.file_name();
                 let full_version = file_name.to_string_lossy();
-                let bin_name = get_binary_name(&full_version);
+                let (full_version, mono) = if let Some((v, _)) = full_version.split_once("_mono") {
+                    (v, true)
+                } else {
+                    (full_version.as_ref(), false)
+                };
+                let version = GodotVersion::new(full_version, mono);
+                let bin_name = version.get_binary_name();
                 let bin_path = fyg_dirs.engines_data()
-                    .join(full_version.as_ref())
+                    .join(version.get_full_version())
                     .join(bin_name);
                 // TODO: Also check that it's executable?
                 if bin_path.is_file() {
-                    let version = full_version.strip_suffix("-stable")
-                        .unwrap_or(&full_version);
                     println!("{}", &version);
                 }
             }
@@ -70,9 +73,9 @@ pub async fn cmd(available: bool) -> Result<()> {
     loop {
         // List versions on this page.
         for release in &page.items {
-            let release_version = release.tag_name.strip_suffix("-stable")
-                .unwrap_or(&release.tag_name);
-            if is_installed(release_version, &fyg_dirs) {
+            // TODO: List both normal and Mono versions.
+            let release_version = GodotVersion::new(&release.tag_name, false);
+            if is_installed(&release_version, &fyg_dirs) {
                 let installed = format!("{} (installed)", release_version);
                 println!("{}", installed.bold());
             } else {

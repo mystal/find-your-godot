@@ -21,9 +21,9 @@ pub enum CliCommand {
         /// Which version to install. e.g. "3.5.1"
         version: String,
 
-        // Install the Mono version with C# support.
-        // #[arg(long)]
-        // mono: bool,
+        // Install the Mono flavor of Godot with C# support
+        #[arg(long)]
+        mono: bool,
 
         /// Re-install if already installed.
         #[arg(short, long)]
@@ -34,12 +34,20 @@ pub enum CliCommand {
     Uninstall {
         /// Which version to uninstall. e.g. "3.5.1"
         version: String,
+
+        /// Uninstall the mono flavor of Godot
+        #[arg(long)]
+        mono: bool,
     },
 
     /// Launch the given Godot engine version.
     Launch {
         /// Which version to launch. e.g. "3.5.1"
         version: String,
+
+        /// Launch the mono flavor of Godot with C# support
+        #[arg(long)]
+        mono: bool,
     },
 
     /// Edit the Godot project in the current directory in its associated Godot engine.

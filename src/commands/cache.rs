@@ -4,8 +4,8 @@ use anyhow::Result;
 
 use crate::{
     cli::CacheCommand,
-    commands::get_binary_name,
     dirs::FygDirs,
+    version::GodotVersion,
 };
 
 pub fn cmd(cache_command: &Option<CacheCommand>) -> Result<()> {
@@ -28,7 +28,13 @@ pub fn cmd(cache_command: &Option<CacheCommand>) -> Result<()> {
                 if version_path.is_dir() {
                     let file_name = entry.file_name();
                     let full_version = file_name.to_string_lossy();
-                    let bin_name = get_binary_name(&full_version);
+                    let (full_version, mono) = if let Some((v, _)) = full_version.split_once("_mono") {
+                        (v, true)
+                    } else {
+                        (full_version.as_ref(), false)
+                    };
+                    let version = GodotVersion::new(full_version, mono);
+                    let bin_name = version.get_binary_name();
                     let zip_name = format!("{}.zip", &bin_name);
                     let zip_path = version_path
                         .join(&zip_name);
