@@ -15,6 +15,9 @@ pub async fn cmd(version: &str, mono: bool, force: bool) -> Result<()> {
     let version = GodotVersion::new(version, mono);
     let fyg_dirs = FygDirs::get();
 
+    // TODO: get_full_version should return "{version}-{pre_release/stable}", not including "mono"
+    // TODO: And make a different method to return the directory/binary prefix.
+
     let full_version = version.get_full_version();
     let bin_name = version.get_binary_name();
     let bin_path = fyg_dirs.engines_data()
