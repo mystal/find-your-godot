@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -42,8 +44,11 @@ pub enum CliCommand {
         version: String,
     },
 
-    /// Edit the Godot project in the current directory in its associated Godot engine.
-    Edit,
+    /// Edit a Godot project with its associated Godot engine.
+    Edit {
+        /// Path to a project directory to edit. If none specified, try the current directory.
+        project_dir: Option<PathBuf>,
+    },
 
     /// Show or remove files from fyg's cache. Shows downloaded engine versions by default.
     Cache {

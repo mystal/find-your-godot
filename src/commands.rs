@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    env, fs,
     path::Path,
 };
 
@@ -67,7 +67,12 @@ pub async fn run_command(command: &Option<CliCommand>) -> Result<()> {
         CliCommand::Install { version, force } => install::cmd(version, *force).await,
         CliCommand::Uninstall { version } => uninstall::cmd(version),
         CliCommand::Launch { version } => launch::cmd(version),
-        CliCommand::Edit => edit::cmd(),
+        CliCommand::Edit { project_dir } => {
+            let default_dir = env::current_dir()?;
+            let project_dir = project_dir.as_ref()
+                .unwrap_or(&default_dir);
+            edit::cmd(project_dir)
+        }
         CliCommand::Cache { cache_command } => cache::cmd(cache_command),
     }
 }

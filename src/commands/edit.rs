@@ -12,14 +12,15 @@ use crate::{
     version::get_full_version,
 };
 
-const PROJECT_GODOT: &str = "project.godot";
+const PROJECT_GODOT_NAME: &str = "project.godot";
 
-pub fn cmd() -> Result<()> {
-    let project_config = ProjectGodotVersionConfig::load()?;
+pub fn cmd(project_dir: &Path) -> Result<()> {
+    let project_config = ProjectGodotVersionConfig::load(project_dir)?;
 
     // Check for project.godot in this directory.
-    if !Path::new(PROJECT_GODOT).is_file() {
-        bail!("No project.godot file in this directory.");
+    let project_file_path = project_dir.join(PROJECT_GODOT_NAME);
+    if !project_file_path.is_file() {
+        bail!("No project.godot file in {}.", project_dir.display());
     }
 
     let fyg_dirs = FygDirs::get();
@@ -38,7 +39,7 @@ pub fn cmd() -> Result<()> {
     println!("Editing project with: {}", bin_path.to_string_lossy());
     Command::new(&bin_path)
         .arg("--editor")
-        .arg(PROJECT_GODOT)
+        .arg(project_file_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
