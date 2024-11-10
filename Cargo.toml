@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["cargo", "derive"] }
 # Removed for now, though we might use it in the future for config files.
 #confy = "0.5"
 directories = "5"
@@ -42,3 +42,7 @@ features = [
     "tracing",
     "default-client",
 ]
+
+[build-dependencies]
+anyhow = "1"
+vergen-git2 = "1"

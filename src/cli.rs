@@ -1,9 +1,14 @@
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use clap::{Parser, Subcommand};
 
+static VERSION: LazyLock<String> = LazyLock::new(||
+    format!("{} ({})", clap::crate_version!(), env!("VERGEN_GIT_SHA"))
+);
+
 #[derive(Parser)]
-#[command(version, about, arg_required_else_help(true))]
+#[command(version = VERSION.as_str(), about, arg_required_else_help(true))]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<CliCommand>,
