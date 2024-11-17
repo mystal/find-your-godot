@@ -7,20 +7,29 @@ use anyhow::{bail, Result};
 
 use crate::{
     commands::get_binary_name,
-    config::ProjectGodotVersionConfig,
+    config::ProjectFygConfig,
     dirs::FygDirs,
     version::get_full_version,
 };
 
-const PROJECT_GODOT_NAME: &str = "project.godot";
+static PROJECT_GODOT_NAME: &str = "project.godot";
 
-pub fn cmd(project_dir: &Path) -> Result<()> {
-    let project_config = ProjectGodotVersionConfig::load(project_dir)?;
+pub fn cmd(project_fyg_dir: &Path) -> Result<()> {
+    let project_config = ProjectFygConfig::load(project_fyg_dir)?;
+    let godot_dir = if let Some(dir) = &project_config.root {
+        if dir.is_relative() {
+            project_fyg_dir.join(dir)
+        } else {
+            dir.clone()
+        }
+    } else {
+        project_fyg_dir.to_owned()
+    };
 
     // Check for project.godot in this directory.
-    let project_file_path = project_dir.join(PROJECT_GODOT_NAME);
-    if !project_file_path.is_file() {
-        bail!("No project.godot file in {}.", project_dir.display());
+    let project_godot_path = godot_dir.join(PROJECT_GODOT_NAME);
+    if !project_godot_path.is_file() {
+        bail!("No {} file in {}.", PROJECT_GODOT_NAME, godot_dir.display());
     }
 
     let fyg_dirs = FygDirs::get();
@@ -39,7 +48,7 @@ pub fn cmd(project_dir: &Path) -> Result<()> {
     println!("Editing project with: {}", bin_path.to_string_lossy());
     Command::new(&bin_path)
         .arg("--editor")
-        .arg(project_file_path)
+        .arg(project_godot_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

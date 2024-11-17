@@ -51,7 +51,7 @@ pub enum CliCommand {
 
     /// Edit a Godot project with its associated Godot engine.
     Edit {
-        /// Path to a project directory to edit. If none specified, try the current directory.
+        /// Path to a project directory to edit that contains a fyg.toml file. If none specified, try the current directory.
         project_dir: Option<PathBuf>,
     },
 
